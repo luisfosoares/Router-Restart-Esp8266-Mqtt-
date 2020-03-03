@@ -26,16 +26,16 @@ PubSubClient client(MQTT_SERVER, 1883, wclient);
 #define MINUTES (60L * 1000)
 #define SECONDS  1000
 const unsigned long  PROBE_DELAY = 1 * MINUTES;  
-const unsigned long  RESET_DELAY = 5 * MINUTES;  
-const unsigned long  RESET_PULSE = 3 * SECONDS;  
+const unsigned long  RESET_DELAY = 4 * MINUTES;  
+const unsigned long  RESET_PULSE = 2 * SECONDS;  
 int  Nreset_events = 0;
+int Ndown = 0;
 
 enum {  
     TESTING_STATE=0, FAILURE_STATE=1, SUCCESS_STATE=2
 };
 
 int CurrentState = TESTING_STATE;
-
 
 bool checkMqttConnection() {
 Serial.println("Checking mqtt connection\n");
@@ -64,8 +64,6 @@ void setup() {
     WiFi.begin(ssid, password);
 
 
-
-
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
         Serial.print(".");
@@ -79,10 +77,6 @@ void setup() {
 
      }
     }
-    
-
-
-    
 }
 
 
@@ -101,9 +95,9 @@ void loop() {
     if (checkMqttConnection()) {
       
       client.loop();
-
      }
     }
+    
     switch (CurrentState) {
 
         case TESTING_STATE:
@@ -115,17 +109,37 @@ void loop() {
             break;
 
         case FAILURE_STATE:
-            Serial.print(String("Router Reset\n"));
+            //Serial.print(String("Router Reset\n"));
             reset_device();
             delay(RESET_DELAY);
             CurrentState = TESTING_STATE;
-            client.publish(MQTT_STATE_TOPIC, "Router Reset");
-            client.publish(MQTT_STATE_TOPIC, "Resets:%d "+ Nreset_events);
+            //client.publish(MQTT_STATE_TOPIC, "Router Reset");
+            //client.publish(MQTT_STATE_TOPIC, "Resets:%d "+ Nreset_events);
             break;
 
         case SUCCESS_STATE:
+        
+            Serial.print(String(Nreset_events) + "\n");
+            Serial.print(String(Ndown) + "\n");
+
+            
+            if (Nreset_events != Ndown){
+              Serial.print(String("Router Reset\n"));
+              client.publish(MQTT_COMMAND_TOPIC, "Router              Reset");  
+              
+              char charBuf[String(Nreset_events).length() + 1];
+              String(Nreset_events).toCharArray(charBuf,String(Nreset_events).length() + 1);
+              client.publish(MQTT_COMMAND_TOPIC, charBuf);
+             
+              
+              Ndown++;
+            }
+            
             Serial.print(String("Router OK\n"));
             client.publish(MQTT_STATE_TOPIC, "Router Ok");
+    
+   
+
             delay(PROBE_DELAY);
             CurrentState = TESTING_STATE;
             break;
